@@ -1,23 +1,41 @@
-from typing import TypedDict, Optional, List, Any
+from __future__ import annotations
+
+import operator
+from typing import TypedDict, List
+from langchain_core.messages import BaseMessage # Added for chat_history
 from langgraph.graph import add_messages
 from typing_extensions import Annotated
 
-class AgentState(TypedDict):
-    """
-    Represents the state of the Terminal MCP Agent.
-    """
-    # The initial natural language command from the user
-    user_command: str
 
-    # The parsed command, including the tool to be called and its arguments
-    # Example: {"tool_name": "list_files", "args": {"path": "./docs"}}
-    parsed_command: Optional[dict] = None
+class OverallState(TypedDict):
+    messages: Annotated[list, add_messages]
+    search_query: Annotated[list, operator.add]
+    web_research_result: Annotated[list, operator.add]
+    sources_gathered: Annotated[list, operator.add]
+    initial_search_query_count: int
+    max_research_loops: int
+    research_loop_count: int
+    reasoning_model: str
+    chat_history: Annotated[List[BaseMessage], add_messages] # Added chat_history
 
-    # The output from the executed MCP tool
-    tool_output: Optional[Any] = None
 
-    # Any error message encountered during processing
-    error_message: Optional[str] = None
+class ReflectionState(TypedDict):
+    is_sufficient: bool
+    knowledge_gap: str
+    follow_up_queries: Annotated[list, operator.add]
+    research_loop_count: int
+    number_of_ran_queries: int
 
-    # Conversation history (for potential future use, like context-aware commands)
-    # messages: Annotated[List, add_messages]
+
+class Query(TypedDict):
+    query: str
+    rationale: str
+
+
+class QueryGenerationState(TypedDict):
+    query_list: list[Query]
+
+
+class WebSearchState(TypedDict):
+    search_query: str
+    id: str

@@ -1,73 +1,96 @@
 from datetime import datetime
 
-# Get current date in a readable format (can be used in prompts if needed)
+
+# Get current date in a readable format
 def get_current_date():
     return datetime.now().strftime("%B %d, %Y")
 
-# Instructions for the LLM to parse natural language commands into MCP tool calls.
-# This prompt will be enhanced later to dynamically include tool schemas.
-COMMAND_PARSER_INSTRUCTIONS = """
-You are an expert at understanding natural language commands and translating them into structured tool calls.
-Your goal is to identify the appropriate tool and extract its arguments from the user's command.
-The current date is {current_date}.
 
-Available Tools:
-1.  **ListFilesTool**: Lists files and directories.
-    *   Arguments: `path` (string, optional, default: ".") - The directory path.
-    *   Example user commands: "list files", "show everything in my_folder", "ls src"
+query_writer_instructions = """Your goal is to generate sophisticated and diverse web search queries. These queries are intended for an advanced automated web research tool capable of analyzing complex results, following links, and synthesizing information.
 
-2.  **ReadFileTool**: Reads the content of a file.
-    *   Arguments: `path` (string, required) - The path to the file.
-    *   Example user commands: "cat my_document.txt", "show me what's in requirements.txt", "read /etc/hosts"
+Instructions:
+- Always prefer a single search query, only add another query if the original question requests multiple aspects or elements and one query is not enough.
+- Each query should focus on one specific aspect of the original question.
+- Don't produce more than {number_queries} queries.
+- Queries should be diverse, if the topic is broad, generate more than 1 query.
+- Don't generate multiple similar queries, 1 is enough.
+- Query should ensure that the most current information is gathered. The current date is {current_date}.
 
-3.  **CreateDirectoryTool**: Creates a new directory.
-    *   Arguments: `path` (string, required) - The path where the new directory should be created.
-    *   Example user commands: "mkdir new_project", "create a folder called temp_files"
+Format:
+- Format your response as a JSON object with ALL three of these exact keys:
+   - "rationale": Brief explanation of why these queries are relevant
+   - "query": A list of search queries
 
-You must determine which tool is most appropriate for the user's command and extract the arguments for that tool.
-If the user's command is ambiguous or does not map to any available tool, you should indicate that no suitable tool was found.
+Example:
 
-User Command: "{user_command}"
-
-Respond with a JSON object that strictly matches the Pydantic schema of the chosen tool, or if no tool is suitable, respond with a JSON object like:
-`{{"tool_name": "NoSuitableToolFound", "args": {{"original_command": "{user_command}"}}}}`
-
-Example for "list files in /tmp":
+Topic: What revenue grew more last year apple stock or the number of people buying an iphone
 ```json
 {{
-    "tool_name": "ListFilesTool",
-    "args": {{
-        "path": "/tmp"
-    }}
+    "rationale": "To answer this comparative growth question accurately, we need specific data points on Apple's stock performance and iPhone sales metrics. These queries target the precise financial information needed: company revenue trends, product-specific unit sales figures, and stock price movement over the same fiscal period for direct comparison.",
+    "query": ["Apple total revenue growth fiscal year 2024", "iPhone unit sales growth fiscal year 2024", "Apple stock price growth fiscal year 2024"],
 }}
 ```
 
-Example for "cat /boot/config.txt":
-```json
-{{
-    "tool_name": "ReadFileTool",
-    "args": {{
-        "path": "/boot/config.txt"
-    }}
-}}
-```
+Context: {research_topic}"""
 
-Example for "make a new directory called 'my photos'":
-```json
-{{
-    "tool_name": "CreateDirectoryTool",
-    "args": {{
-        "path": "my photos"
-    }}
-}}
-```
+
+web_searcher_instructions = """Conduct targeted Google Searches to gather the most recent, credible information on "{research_topic}" and synthesize it into a verifiable text artifact.
+
+Instructions:
+- Query should ensure that the most current information is gathered. The current date is {current_date}.
+- Conduct multiple, diverse searches to gather comprehensive information.
+- Consolidate key findings while meticulously tracking the source(s) for each specific piece of information.
+- The output should be a well-written summary or report based on your search findings.
+- Only include the information found in the search results, don't make up any information.
+
+Research Topic:
+{research_topic}
 """
 
-# (Keep other prompts from the original file if they might be useful,
-# or remove them if they are purely for the old web research agent.
-# For now, let's remove the old ones to keep it clean.)
+reflection_instructions = """You are an expert research assistant analyzing summaries about "{research_topic}".
 
-# query_writer_instructions = ... (removed)
-# web_searcher_instructions = ... (removed)
-# reflection_instructions = ... (removed)
-# answer_instructions = ... (removed)
+Instructions:
+- Identify knowledge gaps or areas that need deeper exploration and generate a follow-up query. (1 or multiple).
+- If provided summaries are sufficient to answer the user's question, don't generate a follow-up query.
+- If there is a knowledge gap, generate a follow-up query that would help expand your understanding.
+- Focus on technical details, implementation specifics, or emerging trends that weren't fully covered.
+
+Requirements:
+- Ensure the follow-up query is self-contained and includes necessary context for web search.
+
+Output Format:
+- Format your response as a JSON object with these exact keys:
+   - "is_sufficient": true or false
+   - "knowledge_gap": Describe what information is missing or needs clarification
+   - "follow_up_queries": Write a specific question to address this gap
+
+Example:
+```json
+{{
+    "is_sufficient": true, // or false
+    "knowledge_gap": "The summary lacks information about performance metrics and benchmarks", // "" if is_sufficient is true
+    "follow_up_queries": ["What are typical performance benchmarks and metrics used to evaluate [specific technology]?"] // [] if is_sufficient is true
+}}
+```
+
+Reflect carefully on the Summaries to identify knowledge gaps and produce a follow-up query. Then, produce your output following this JSON format:
+
+Summaries:
+{summaries}
+"""
+
+answer_instructions = """Generate a high-quality answer to the user's question based on the provided summaries.
+
+Instructions:
+- The current date is {current_date}.
+- You are the final step of a multi-step research process, don't mention that you are the final step.
+- You have access to all the information gathered from the previous steps.
+- You have access to the user's question.
+- Generate a high-quality answer to the user's question based on the provided summaries and the user's question.
+- you MUST include all the citations from the summaries in the answer correctly.
+
+User Context:
+- {research_topic}
+
+Summaries:
+{summaries}"""

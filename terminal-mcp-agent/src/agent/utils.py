@@ -1,22 +1,24 @@
 from typing import Any, Dict, List
-from langchain_core.messages import AnyMessage, AIMessage, HumanMessage
+from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 
 
-def get_research_topic(messages: List[AnyMessage]) -> str:
+def get_research_topic(chat_history: List[BaseMessage]) -> str:
     """
-    Get the research topic from the messages.
+    Get the research topic from the chat history.
     """
-    # check if request has a history and combine the messages into a single string
-    if len(messages) == 1:
-        research_topic = messages[-1].content
-    else:
-        research_topic = ""
-        for message in messages:
-            if isinstance(message, HumanMessage):
-                research_topic += f"User: {message.content}\n"
-            elif isinstance(message, AIMessage):
-                research_topic += f"Assistant: {message.content}\n"
-    return research_topic
+    # Combine the messages into a single string
+    # The most recent messages are more important for context.
+    # Consider taking last N messages if history becomes too long.
+    research_topic_parts = []
+    for message in reversed(chat_history): # Process recent messages first
+        if isinstance(message, HumanMessage):
+            research_topic_parts.append(f"User: {message.content}")
+        elif isinstance(message, AIMessage):
+            research_topic_parts.append(f"Assistant: {message.content}")
+        # Potentially handle SystemMessage or other types if they are in chat_history
+
+    # Join parts, reversing back to chronological order for the final string
+    return "\n".join(reversed(research_topic_parts))
 
 
 def resolve_urls(urls_to_resolve: List[Any], id: int) -> Dict[str, str]:
